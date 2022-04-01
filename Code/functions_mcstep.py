@@ -75,6 +75,41 @@ def WolffUpdate(config, temp, N, neighbors_list):
     return avg_size_clust
 
 
+#one step of the Metropolis algorithm
+@jit(nopython=True) # Set "nopython" mode for best performance, equivalent to @njit
+def MetropolisUpdate(config, temp, N, neighbors_list):
+    beta=1./temp
+    
+    #do wolff steps as long as the total cluster size flipped
+    # is smaller than the size of the system
+    numItTot = N*N
+    size = N*N
+
+    for nn in range(numItTot):
+        #cluster = np.zeros(numItTot, dtype = np.int8)
+        #listQ = np.zeros(numItTot + 1, dtype = np.int64)
+        site = np.random.randint(0, size)
+        s_angle = config[site]
+
+        new_angle = (2*np.pi)*np.random.rand()
+
+        energy_past = 0.0
+        energy_future = 0.0
+
+        for kk in range(4):
+            site_nn = neighbors_list[4*site + kk]
+            past_angle = config[site_nn]
+            energy_past += cos(s_angle - past_angle)
+            energy_future += cos(new_angle - past_angle)
+
+        cost = energy_past - energy_future
+
+        if cost <= 0:
+            config[site]= new_angle
+        else:
+            if np.random.rand() < exp(- beta*cost):
+                config[site]= new_angle
+
 
 
 #one step of the Wolff algorithm

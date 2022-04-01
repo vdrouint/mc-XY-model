@@ -17,31 +17,16 @@ from numpy import mod as mod
 from numpy.random import randint as randint
 from numpy import absolute as absolute
 #this is where you import the MC update
-from functions_mcstep import WolffUpdate as mcUpdate
+from functions_mcstep import MetropolisUpdate as mcUpdate
 from functions_mcstep import EnergyCalc as EnergyCalc
 from functions_mcstep import MeasureConfigNumba as MeasureConfigNumba
 
 
 
 ####
-#pre thermalization function
-#obtain optimal factorIter
+#No pre thermalization in Metropolis Step
 ####
 
-def UpdatePreTherm(config_init, temp, N, neighbors_list, factorIter):
-
-    #the config
-    config = config_init.copy()
-
-    #mc step
-    avg_size_clust = 0.0
-    for st in range(factorIter):
-        size_clust = mcUpdate(config, temp, N, neighbors_list)
-        avg_size_clust += size_clust
-
-    final_avg_size_clust = avg_size_clust/factorIter
-
-    return [config, final_avg_size_clust]
 
 ####
 #thermalization step
@@ -106,7 +91,7 @@ def main():
     #number of steps
     num_cores = int(sys.argv[6])
     length_box = 100 # number of MC steps in each bin (both during measurement and during thermalization period)   
-    pre_therm = 100     
+    #pre_therm = 100     
     therm = int(sys.argv[7])     # number of MC bins during thermalization time
     number_box = int(sys.argv[8])     # // number of MC bins during which measurement is applied 
     
@@ -153,7 +138,7 @@ def main():
     ##########
 
     #see if the folder exists. if it does not, create one
-    name_dir = 'testL='+str(int(N)) 
+    name_dir = 'testmetroL='+str(int(N)) 
 
     where_to_save = './' #more useful for cluster use
     #where_to_save = '../Results/' #more useful for local runs
@@ -210,43 +195,6 @@ def main():
     #use pt in this run
     print('start with pre therm')
     config_at_T = config_start #the initial config of config_at_T is defined
-
-    #######-------
-    #Monte Carlo step  to obtain the optimal numer of 
-    #######------------
-    #run all configs at a given temperature, use pt_EtoT to get the right temperature (E is like Config)
-    niters = np.ones(nt)
-    niters = np.array(list(map(int, niters)))
-    list_avg_clus_size = np.zeros(nt)
-
-    with Parallel(n_jobs=num_cores, max_nbytes = '10M') as parallel:
-        #######-------
-        #Monte Carlo step 
-        #######------------
-
-        #run all configs at a given temperature, use pt_EtoT to get the right temperature (E is like Config)
-        resultsPreTherm = parallel(delayed(UpdatePreTherm)(config_init = config_at_T[m], \
-            temp = list_temps[m], N= N, neighbors_list = neighbors_list, factorIter = pre_therm*niters[m]) for m in range(nt))
-
-        #energy_start = []
-        for q in range(nt):
-            list_avg_clus_size[q] = resultsPreTherm[q][1]
-            config_at_T[q] = resultsPreTherm[q][0]
-
-        #gc.collect()
-
-
-    niters = np.ceil((N**2)/list_avg_clus_size)*niters
-    niters = np.array(list(map(int, niters)))
-    print('new number of iteration per temp')
-    print(niters)    
-
-    end = time.time()
-
-    print()
-    print('done with initialization in '+ str((end - start) ) + ' secs')
-    print()
-
 
 
     #saving the variables of the computation
@@ -312,9 +260,7 @@ def main():
             #run all configs at a given temperature, use pt_EtoT to get the right temperature (E is like Config)
             resultsTherm = parallel(delayed(PTTstepTherm)(config_init = config_at_T[m], \
                 temp = list_temps[pt_EtoT[m]], N= N, neighbors_list = neighbors_list, \
-                factorIter = length_box*niters[pt_EtoT[m]]) for m in range(nt))
-            #resultsTherm = parallel(delayed(ModifiedWolffLayeredFunc2)(config_init = config_at_T[m], \
-            #    temp_init = list_temps[pt_EtoT[m]], N= N, j2 = j2, j6 = j6, lambda3 = lambda3, niter = niters[m]) for m in range(nt))
+                factorIter = length_box) for m in range(nt))
             for q in range(nt):
                 list_energies[q] = resultsTherm[q][1]
                 config_at_T[q] = resultsTherm[q][0]
@@ -402,8 +348,6 @@ def main():
     #the data sets:
     #change this
     all_data_thermo = np.zeros((nt,number_box*length_box, 7))
-    #all_data_stiff = np.zeros((nt,number_box*length_box, 2))
-    #all_data_vort = np.zeros((nt,number_box*length_box, 1))
 
     #swap even pairs or not: initiate at 0
     swap_even_pairs = 0
@@ -424,7 +368,7 @@ def main():
             #run all configs at a given temperature, use pt_EtoT to get the right temperature (E is like Config)
             resultsMeasure = parallel(delayed(PTTstepMeasure)(config_init = config_at_T[m], \
                 temp = list_temps[pt_EtoT[m]], N= N, neighbors_list = neighbors_list, \
-                factorIter = length_box*niters[pt_EtoT[m]]) for m in range(nt))
+                factorIter = length_box) for m in range(nt))
             for q in range(nt):
                 list_energies[q] = resultsMeasure[q][1]
                 config_at_T[q] = resultsMeasure[q][0]
@@ -465,8 +409,6 @@ def main():
                 data_extract = resultsMeasure[pt_TtoE[q]][2]
                 for ws in range(length_box):                 
                     all_data_thermo[q][length_box*il + ws] = data_extract[ws]
-                    #all_data_stiff[q][length_box*il + ws] = data_extract[ws][4:6]
-                    #all_data_vort[q][length_box*il + ws] = data_extract[ws][6]
 
             print('Done with measure step' + str(int(il)) + ' out of ' + str(int(number_box)) )
 

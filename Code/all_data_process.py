@@ -215,25 +215,32 @@ def main():
     ##########
 
     #the directory to take the data from 
+    #change this if doing wolff (default) or Metropolis
     name_dir = 'testL='+str(int(N)) 
+    #name_dir = 'testmetroL='+str(int(N)) 
+
+    where_to_save = './' #more useful for cluster use
+    #where_to_save = '../Results/' #more useful for local runs
+
+
 
     #folder to put it in
     folder_data_final = name_dir+'finalData'
-    if not os.path.exists('../Results/'+ folder_data_final):
-        os.mkdir('../Results/'+ folder_data_final)
+    if not os.path.exists(where_to_save + folder_data_final):
+        os.mkdir(where_to_save + folder_data_final)
 
     #saving the variables in the other folder
     #the form of variables.data
     #saving_variables_pre = np.array([j2,j6,lambda3, Kc, length_box, number_box, therm])
     #saving_variables = np.append(saving_variables_pre, range_temp)
     
-    saving_variables = np.loadtxt('./'+name_dir+'/variables.data')
+    saving_variables = np.loadtxt(where_to_save +name_dir+'/variables.data')
     number_box = int(saving_variables[1])
     #number_box = 1600
     length_box = int(saving_variables[0])
     #length_box = 10
     range_temp = saving_variables[3:]
-    np.savetxt('../Results/'+folder_data_final+'/variables.data', saving_variables)
+    np.savetxt(where_to_save +folder_data_final+'/variables.data', saving_variables)
     #number of temperature steps
     nt = len(range_temp)
 
@@ -289,9 +296,15 @@ def main():
 
     CorrLengthU = np.zeros(2*nt)
 
+    RhoTot = np.zeros(2*nt)
+
+    fourthOrderTot = np.zeros(2*nt)
+
+    Vorticity = np.zeros(2*nt)
+
     ## This part runs through the data and creates the errors
     for m in range(nt):
-        data = np.loadtxt('./' + name_dir +'/outputatT='+str(int(range_temp[m]*factor_print)).zfill(5)+'.data')
+        data = np.loadtxt(where_to_save  + name_dir +'/outputatT='+str(int(range_temp[m]*factor_print)).zfill(5)+'.data')
         #data = np.loadtxt('outputL='+str(int(N))+'atT='+str(int(range_temp[m]*1000)).zfill(5)+'.data')
         """
         output_thermo = [energy, total.real, total.imag, ord6.real, ord6.imag,\
@@ -391,42 +404,11 @@ def main():
         Energy_histo_edges[m] = ener_histo[1]
 
 
-    #save an energy histogram
-    #np.savetxt('./'+ folder_data_final +'/histo_output.data', np.c_[Energy_histo])
-    #np.savetxt('./'+ folder_data_final +'/histo_edges_output.data', np.c_[Energy_histo_edges])
-
-
-
-    #np.savetxt('./testF=1L='+str(int(N))+'finalData'+'/thermo_outputL='+str(int(N))+'.data',
-    #    np.c_[Energy, SpecificHeat, OrderCumulant, OrderParam, Susceptibility, BinderCumulant, \
-    #    Order6, Susc6,Binder6, Order2,  Susc2, Binder2, MomentumNullHexatic, MomentumNullNematic])
-
-    np.savetxt('../Results/'+ folder_data_final +'/thermo_output.data',
-        np.c_[Energy, SpecificHeat, OrderCumulant,\
-        OrderParam, OrderParam_BIS, Susceptibility1, Susceptibility2, BinderCumulant, CorrLengthU])
-
-    print()
-    print('Done with Order/Thermo Analysis')
-    print()
-
-
-
-    #########-----------------------------------------------
-    #Measurements for the Stiffness
-    ########------------------------------------------------
-
-    RhoTot = np.zeros(2*nt)
-
-    fourthOrderTot = np.zeros(2*nt)
-
-
-    ## This part runs through the data and creates the errors
-    for m in range(nt):
-        data = np.loadtxt('./'+ name_dir +'/stiffnessPreDataatT='+str(int(range_temp[m]*factor_print)).zfill(5)+'.data')
-        #data = np.loadtxt('stiffnessPreDataL='+str(int(N))+'atT='+str(int(range_temp[m]*1000)).zfill(5)+'.data')
-
-        Stiff_tot_H = data[:,0]/N**2
-        Stiff_tot_I = data[:,1]/N**2
+        ####
+        #stiffness
+        ####
+        Stiff_tot_H = data[:,4]/N**2
+        Stiff_tot_I = data[:,5]/N**2
         Stiff_tot_I2 = Stiff_tot_I*Stiff_tot_I
         Stiff_tot_I4 = Stiff_tot_I2*Stiff_tot_I2
 
@@ -449,39 +431,37 @@ def main():
             - (N**2/T)*(list_Ysq_tot_avg - RhoTot[m]**2)) + 2*(N**6/(T**3))*Stiff_tot_I4_avg
 
 
-    np.savetxt('../Results/'+ folder_data_final +'/STIFF_thermo_output.data',
-        np.c_[RhoTot, fourthOrderTot])
+        ######
+        #vorticity
+        ######
 
-    print()
-    print('Done with Stiffness Analysis')
-    print()
-
-
-    #########-----------------------------------------------
-    #Measurements for the Vorticity
-    ########------------------------------------------------
-
-    Vorticity = np.zeros(2*nt)
-    
-
-    #vorticity measurements
-    for m in range(nt):
-        data = np.loadtxt('./'+ name_dir +'/VorticityDataatT='+str(int(range_temp[m]*factor_print)).zfill(5)+'.data')
-        Vort = data[:]
+        Vort = data[:,6]
         #we use a version of the jackknife function that creates the boxes in the function
         Vort_avg , Vort_error = JackknifeErrorFromFullList(Vort, number_box, length_box)
         Vorticity[m] = Vort_avg/N**2
         Vorticity[nt + m] = Vort_error/N**2
 
 
-    #np.savetxt('./'+ folder_data_final +'/Vorticity_thermo_output.data',
-    #    np.c_[VorticityTheta, VorticityPhi, DeviationTheta, DeviationPhi, diffTheta, diffPhi, fracVortexPhi])
-    np.savetxt('../Results/'+ folder_data_final +'/Vorticity_thermo_output.data',
-        np.c_[Vorticity])
+    #save an energy histogram
+    #np.savetxt('./'+ folder_data_final +'/histo_output.data', np.c_[Energy_histo])
+    #np.savetxt('./'+ folder_data_final +'/histo_edges_output.data', np.c_[Energy_histo_edges])
+
+
+
+    #np.savetxt('./testF=1L='+str(int(N))+'finalData'+'/thermo_outputL='+str(int(N))+'.data',
+    #    np.c_[Energy, SpecificHeat, OrderCumulant, OrderParam, Susceptibility, BinderCumulant, \
+    #    Order6, Susc6,Binder6, Order2,  Susc2, Binder2, MomentumNullHexatic, MomentumNullNematic])
+
+    np.savetxt(where_to_save + folder_data_final +'/thermo_output.data',
+        np.c_[Energy, SpecificHeat, OrderCumulant,\
+        OrderParam, OrderParam_BIS, Susceptibility1, Susceptibility2, BinderCumulant, CorrLengthU,\
+        RhoTot, fourthOrderTot, Vorticity])
 
     print()
-    print('Done with Vorticity Analysis')
+    print('Done with Scaling Analysis')
     print()
+
+    
 
     
     #this creates a larger file
@@ -497,7 +477,7 @@ def main():
         K_val = np.arange(K_max)
 
         for m in range(nt):
-            data_1 = np.loadtxt('./' + name_dir +'/outputatT='+str(int(range_temp[m]*factor_print)).zfill(5)+'.data')
+            data_1 = np.loadtxt(where_to_save  + name_dir +'/outputatT='+str(int(range_temp[m]*factor_print)).zfill(5)+'.data')
             AutoCorrEnergy = np.zeros(2*K_max)
             AutoCorrM = np.zeros(2*K_max)
 
@@ -517,7 +497,7 @@ def main():
 
 
             ##save it
-            np.savetxt('./'+ folder_data_final +'/Autocorr_outputatT='+str(int(range_temp[m]*factor_print)).zfill(5)+'.data',
+            np.savetxt(where_to_save + folder_data_final +'/Autocorr_outputatT='+str(int(range_temp[m]*factor_print)).zfill(5)+'.data',
                 np.c_[AutoCorrEnergy, AutoCorrM])
 
         print()
@@ -529,8 +509,8 @@ def main():
         #move config to here
         #####
         for m in range(nt):
-            data_1 = np.loadtxt('./' + name_dir +'/configatT='+str(int(range_temp[m]*factor_print)).zfill(5)+'.data')
-            np.savetxt('./'+ folder_data_final +'/configatT='+str(int(range_temp[m]*factor_print)).zfill(5)+'.data',data_1)        
+            data_1 = np.loadtxt(where_to_save  + name_dir +'/configatT='+str(int(range_temp[m]*factor_print)).zfill(5)+'.data')
+            np.savetxt(where_to_save + folder_data_final +'/configatT='+str(int(range_temp[m]*factor_print)).zfill(5)+'.data',data_1)        
 
 
     
